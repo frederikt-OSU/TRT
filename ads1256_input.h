@@ -830,7 +830,7 @@ int  get_input(float adc_values[], int ch_num)
 	char buffer3[3];
 	char *myStr = buffer1;
 	clock_t start,end;
-	uint8_t currentTime;
+	uint8_t counter;
 
     if (!bcm2835_init())
         return 1;
@@ -859,9 +859,7 @@ int  get_input(float adc_values[], int ch_num)
         ADS1256_StartScan(0);	
 
 
-	start = clock();
-
-	while(currentTime != 1){ // leave loop, if one second is over
+	for(counter = 0;counter <13;counter++){
 
 	    while((ADS1256_Scan() == 0));
 	       
@@ -871,16 +869,14 @@ int  get_input(float adc_values[], int ch_num)
 		}
 
 //		printf("\33[%dA", (int)ch_num);  
-		bsp_DelayUS(100); //100 000
-		
-		end = clock();
-		currentTime = (end-start)/CLOCKS_PER_SEC;
+		bsp_DelayUS(100); //100 000		
 	}	
 	
 	// write only positiv input values to the passed array (converting int to correct volts float)
 	for (i = 0; i < ch_num; i++){
 		
 		iTemp = volt[i];
+
 		if(iTemp < 0){
 			
 			iTemp = -iTemp;

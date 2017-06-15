@@ -129,8 +129,8 @@ void calculation_of_output(float input[], float output[], float Q_set, float vol
 
 //main function for controlling the pi input and output
 int main(){
-
-	///////////////////////////// initialization ///////////////////////
+  
+	///////////////////////////// initialization ///////////////////////  
 	int num_input_ch = 6;				// up to 8 possible	
 	float DA_values[2];	
 	float input_voltage[num_input_ch];
@@ -141,7 +141,7 @@ int main(){
 	char * pbuf1 = buf1;
 	char * pbuf2 = buf2;
 	char * pbuf3 = buf3;		
-	///////// ///////////////////////////////////////////////////////////	
+	///////// ///////////////////////////////////////////////////////////	    
 	
 	// Read and set DA_values
 	setfile_pointer = fopen("DA_vals.txt","r+");
@@ -152,7 +152,7 @@ int main(){
 	DA_values[1] = atof(pbuf2);
 	V_ref_set	 = atof(pbuf3);	
 
-	set_output_voltage(DA_values, V_ref_set);	
+	set_output_voltage(DA_values, V_ref_set);	  
 	
 	// Read AD values and write file
 	get_input(input_voltage, num_input_ch);	
@@ -161,12 +161,12 @@ int main(){
 	fprintf(ADfile_pointer,"%f\t%f\t%f\t%f\t%f\t%f", input_voltage[0], input_voltage[1], input_voltage[2], input_voltage[3], input_voltage[4], input_voltage[5]);
 	fclose(ADfile_pointer);
 			
+	//printf("AD values: %f\t%f\t%f\t%f\t%f\t%f\n", input_voltage[0], input_voltage[1], input_voltage[2], input_voltage[3], input_voltage[4], input_voltage[5]);
+	//printf("DA0 values: %f, DA1 values: %f\n", DA_values[0], DA_values[1]);
 
-	printf("DA0 values: %f, DA1 values: %f\n", DA_values[0], DA_values[1]);
-	printf("End of master Skript\n ");
-	return 0;
-}
-
+	return 0;  
+}  
+ 
 /*	Do loop and time handeling which should be implemented in python
  * 	///////////////////////////// initialization ///////////////////////
 	int num_input_ch = 6;				// up to 8 possible
@@ -208,14 +208,9 @@ int main(){
 			get_input(input_voltage, num_input_ch);			
 			calculation_of_output(input_voltage, output_voltage, Q_set, volumeflowrate_set);
 			
-						
-
- 
 			set_output_voltage(output_voltage, V_ref_set);
 			//getchar();
-			
-
-		
+				
 			// write data to output file
 			date_and_time = time(0);			
 			fPointer = fopen("InAndOutputData.txt","a");
