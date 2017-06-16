@@ -1,4 +1,3 @@
-/* gcc-4.8 master.c bcm2835.c -o master */
 #include "bcm2835.h"
 #include "ads1256_input.h"
 #include "dac8532_output.h"
@@ -7,31 +6,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
-#include <math.h>
-
 
 /*	Explanation:
  * get_input(float [], int) : is the main function from ads1256_test --> floating values with volts as unit
- * set_output(float )		: is the main function from dac8532_test --> floating values with volts as unit
- * output_voltage			: 0 -->  V_SCR (DAC0), 1 --> V_pump (DAC1)
+ * set_output(float[],float): is the main function from dac8532_test --> floating values with volts as unit
  * input_voltage			: 0 -->  V_T_ref1, 3 --> V_T2
  * 							  1 -->  V_T1	 , 4 --> V_flow
  * 							  2 -->  V_Tref_2, 5 --> V_pressure 
  * V_ref_set 				: reference voltage for setting of voltage output (5.0 or 3.3 V)
-*/
-
-
-/*
- ***********************************************************************
- * function: read_setvalues()
- * input: pointer Q --> stores the current heatinlet
- * 		  pointer volumeflowrate --> stores the current flowrate
- * 		  length_firstline_Setfile: gives the length of the very first line in the set file
- * 		  pointer maxTime --> stores the maximal timesteps (hours) the measurement should take
- * 		  currentTime: current timestep 
- * 
- *********************************************************************** 
 */
 /*
 void read_setvalues(float *Q, float *volumeflowrate, int length_firstline_Setfile, int *maxTime, int currentTime){
@@ -83,54 +65,9 @@ void read_setvalues(float *Q, float *volumeflowrate, int length_firstline_Setfil
 
 } */
 
-/*
-void calculation_of_output(float input[], float output[], float Q_set, float volumeflowrate_set){
-	
-	float V_T_ref1	 = input[0]; 
-	float V_T1		 = input[1]; 
-	float V_T_ref2	 = input[2]; 
-	float V_T2		 = input[3]; 
-	float V_flow	 = input[4];
-	float V_pressure = input[5];	
-	float a_stein = 1;
-	float b_stein = 2;
-	float c_stein = 3;
-	float d_stein = 4;
-	float a_flow = 2;
-	float b_flow = 4.5;
-	float R_T_ref1 = 5000;
-	float R_T_ref2 = 3000;
-	float R_T1, R_T2, T_1, T_2, volumeflow, delta_p, c_p, rho, Q_actual; 
-	
-	// calculate resistance of thermistors
-	R_T1 = V_T1/ (V_T_ref1/ R_T_ref1);
-	R_T2 = V_T2/ (V_T_ref2/ R_T_ref2);
-	
-	// calculate temperature with Steinhart-Hart equation
-	T_1 = 1/(a_stein + b_stein * log(R_T1) + c_stein * powf(log(R_T1),2) + d_stein * powf(log(R_T1),3));
-	T_2 = 1/(a_stein + b_stein * log(R_T2) + c_stein * powf(log(R_T2),2) + d_stein * powf(log(R_T2),3));
-	
-	volumeflow = a_flow + b_flow * V_flow;
-	
-	delta_p = V_pressure; // add real equation
-	
-	c_p = 1; // add solution from correlation
-	rho = 3; // add solution from correlation
-	
-	Q_actual = abs(rho * volumeflow * c_p * (T_2 - T_1)) + delta_p * volumeflow;	// abs() in order to have no difference which temperature is measured first
-	
-	printf("calculated Q_actual= %f\n", Q_actual);
-	
-	// wie soll der output genau berechnet werden? wie ist es mit der pumpe? 
-	output[0] = 2;	
-	output[1] = 1;
-}*/
-
-
 //main function for controlling the pi input and output
 int main(){
   
-	///////////////////////////// initialization ///////////////////////  
 	int num_input_ch = 6;				// up to 8 possible	
 	float DA_values[2];	
 	float input_voltage[num_input_ch];
@@ -140,8 +77,7 @@ int main(){
 	char buf1[15],buf2[15],buf3[15];
 	char * pbuf1 = buf1;
 	char * pbuf2 = buf2;
-	char * pbuf3 = buf3;		
-	///////// ///////////////////////////////////////////////////////////	    
+	char * pbuf3 = buf3;		    
 	
 	// Read and set DA_values
 	setfile_pointer = fopen("DA_vals.txt","r+");
