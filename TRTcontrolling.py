@@ -20,7 +20,7 @@ from CoolProp.CoolProp import PropsSI
 def readSetpoints(currentTs):
     global maxTimesteps, Q_set, volumeFlowrate_set
 
-    file_list = open("Setpoints").readlines() 
+    file_list = open("Setpoints.txt").readlines() 
     maxTimesteps = int(file_list[len(file_list)-1].split()[0])
     
     for currentLine in range(1,len(file_list)):
@@ -79,7 +79,7 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
 
 
 
-    V_SCR = 0
+    V_SCR = 3
     V_pump = 0
     
 
