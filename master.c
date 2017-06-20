@@ -68,7 +68,7 @@ void read_setvalues(float *Q, float *volumeflowrate, int length_firstline_Setfil
 //main function for controlling the pi input and output
 int main(){
   
-	int num_input_ch = 6;				// up to 8 possible	
+	int num_input_ch = 7;				// up to 8 possible	
 	float DA_values[2];	
 	float input_voltage[num_input_ch];
 	float V_ref_set;	
@@ -94,7 +94,7 @@ int main(){
 	get_input(input_voltage, num_input_ch);	
 	
 	ADfile_pointer = fopen("AD_vals.txt","w+");
-	fprintf(ADfile_pointer,"%f\t%f\t%f\t%f\t%f\t%f", input_voltage[0], input_voltage[1], input_voltage[2], input_voltage[3], input_voltage[4], input_voltage[5]);
+	fprintf(ADfile_pointer,"%f\t%f\t%f\t%f\t%f\t%f\t%f", input_voltage[0], input_voltage[1], input_voltage[2], input_voltage[3], input_voltage[4], input_voltage[5], input_voltage[6]);
 	fclose(ADfile_pointer);
 			
 	//printf("AD values: %f\t%f\t%f\t%f\t%f\t%f\n", input_voltage[0], input_voltage[1], input_voltage[2], input_voltage[3], input_voltage[4], input_voltage[5]);
