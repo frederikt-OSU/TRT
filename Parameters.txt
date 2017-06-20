@@ -1,0 +1,3 @@
+Diameter [m]	Depth [m]	Length of additional pipsystem [m]	Set_time [s]
+0.05		70		10					5
+									timeperiod to check the setfile
