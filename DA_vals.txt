@@ -1,3 +1,3 @@
-1.000000	 3.000000	 5.0
+0.000000	 1.876746	 5
 DAC0		 DAC1	
-V_SCR		 V_pump		 V_ref_set (5.0 or 3.3)
+V_pump		 V_SCR		 V_ref_set (5.0 or 3.3)
