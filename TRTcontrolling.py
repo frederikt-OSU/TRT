@@ -3,6 +3,7 @@ import time
 import datetime
 import math
 import sys
+from collections import deque
 from CoolProp.CoolProp import PropsSI
 
 # set timezone
@@ -15,7 +16,7 @@ def getTransitTime():
     t_transit = total_length * math.pi * pow(diameter,2)/ (4 * volumeFlow)
 
     ## testing
-    t_transit = 2.361
+    t_transit = 1.561
     ##
     return t_transit
 
@@ -36,12 +37,13 @@ def writeDAfile():
     DAfile_obj.close()
     
 def getParameters():
-    global diameter, total_length, set_time
+    global diameter, total_length, set_time, logfile_period
 
     file_list = open("Parameters.txt").readlines()
     diameter = float(file_list[1].split()[0])
     total_length = float(file_list[1].split()[1]) + float(file_list[1].split()[2])
     set_time = int(file_list[1].split()[3])
+    logfile_period = int(file_list[1].split()[4])
     
 def readSetpoints(currentTs):
     global maxTimesteps, Q_set, volumeFlowrate_set
@@ -59,7 +61,7 @@ def readSetpoints(currentTs):
 
 def calculationOfDA(Q_set_,volumeFlowrate_set_):
    
-    global V_SCR, V_pump, T_1, T_2, Q_tot_in, Q_elec, volumeFlow, counter, sum_error_Q
+    global V_SCR, V_pump, T_1, T_2, Q_tot_in, Q_elec, volumeFlow, counter, sum_error_Q, secondPoint, secondPoint_switch
     R_T_ref = 1500
     totalPressure = 101325
     a_stein1 = 1.326e-3
@@ -88,7 +90,6 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     # calculate resistance of thermistors
     R_T1 = (V_S - V_R1) / (V_R1 - V_G) * R_T_ref;
     R_T2 = (V_S - V_R2) / (V_R2 - V_G) * R_T_ref;    
-
     
     # calculate temperature with Steinhart-Hart equation
     T_1 = 1/(a_stein1 + b_stein1 * math.log(R_T1) + c_stein1 * pow(math.log(R_T1),2) + d_stein1 * pow(math.log(R_T1),3))
@@ -124,14 +125,14 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
 # add correct calculation from V_Q_elec
     Q_elec = 3000
 
-    print("counter: %d, sum_error_Q: %d" % (counter, sum_error_Q))
+    #print("counter: %d, sum_error_Q: %d" % (counter, sum_error_Q))
     error_Flow = volumeFlow - volumeFlowrate_set_
     
 #### setzwerte aufsummieren und mittelwert bilden?
 #### wie PID Regler verwirklichen
   
     
-    print("Q_tot_in: %d, Q_set_: %d V_R1: %f, V_R2: %f, T_1: %f, T_2: %f, R_T1: %f, R_T2: %f, T_mean: %f" % (int(Q_tot_in), int(Q_set_), V_R1, V_R2, T_1-273.15, T_2-273.15, R_T1, R_T2, T_mean))
+    #print("Q_tot_in: %d, Q_set_: %d V_R1: %f, V_R2: %f, T_1: %f, T_2: %f, R_T1: %f, R_T2: %f, T_mean: %f" % (int(Q_tot_in), int(Q_set_), V_R1, V_R2, T_1-273.15, T_2-273.15, R_T1, R_T2, T_mean))
 
 #### Anderungen fuer die Setzwerte sollen langsam gemacht werden,
 #### zB 20 Messungen mit 5 Sekunden Unterschied
@@ -139,46 +140,77 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
 #### spaeter soll zwischen Q_elec und dem Q_cal  gewichtet werden bis zum 6. Durchlauf,
 #### sodass ein langsamer uebergang zur Regelung entsteht
     
-    # if the fluid has transitted 6 times, the control method is activated
-    # every time the fluid has transitted one time new values are set and written into the DA file.
+
+
     currentTime = time.time() - start_clock
-# 6*  in die if Abfrage!!!
-    if (1 * getTransitTime() < currentTime) & (round(currentTime,0) % round(getTransitTime(),0) == 0):
+    
+    # every time the fluid has transitted one time, new values are set and written into the DA file.
+    if (round(currentTime,0) % round(getTransitTime(),0) == 0) or currentTime < 1:
+        DAfile_list = open("DA_vals.txt").readlines()
+        V_SCR_old = DAfile_list[0].split()[1]
+        
+        SCR_supply  = 20000 # 0-20 kW
+        plug_supply = 120 # volts
+        wireLoops   = 2 # loops of wires around
+        DArange     = 5 # 0-5 V
+        WTrange     = 10 # 0-10 V
+        Q_max = SCR_supply / wireLoops
+        print(round(currentTime,0),round(getTransitTime(),0))
+        print(2 * getTransitTime(), currentTime)
+        print("first if statement")
+        
+        # if the fluid has transitted 6 times, the control method is activated
+# 6 * get Transit !!
+        if 2 * getTransitTime() < currentTime:
+            mean_error_Q = sum_error_Q / counter
+            v_scr.append(V_SCR_old)
+            f_v_scr.append(Q_tot_in)
+            print("second if statement")
 
-        mean_error_Q = sum_error_Q / counter
-        if abs(mean_error_Q) > 5:
+            if abs(mean_error_Q) > 5:
+                print("third if statement")
+# 6.5 
+                if 2.5 * getTransitTime() < currentTime and secondPoint_switch == 1: # actual control
+                    # secant method, modifing to a "root finding problem"
+                    f_n_minus1 = float(f_v_scr[1]) - Q_set_
+                    f_n_minus2 = float(f_v_scr[0]) - Q_set_
+                    x_n_minus1 = float(v_scr[1])
+                    x_n_minus2 = float(v_scr[0])
+                    # test
+                    f_n_minus1 = f_n_minus1 + 50
 
-            if mean_error_Q >= 0:
-                
-                Q_new = Q_calc + 3/4 * mean_error_Q
-
+                    print(f_n_minus1, f_n_minus2, x_n_minus1, x_n_minus2)
+                    V_SCR =  x_n_minus1 - f_n_minus1 * (x_n_minus1 - x_n_minus2) / (f_n_minus1 - f_n_minus2)
+                    print("calculated V_SCR: %f" % V_SCR)
+                    print(v_scr,f_v_scr)
+# 6.5                    
+                if 2.5 * getTransitTime() < currentTime and secondPoint == 1: # in order to get a second grid point (only needed one time)
+                    print("fourth if statement")
+                    if mean_error_Q >= 0:                
+                        Q_new = Q_calc + 3/4 * mean_error_Q
+                    else:                
+                        Q_new = Q_calc - 3/4 * abs(mean_error_Q)
+                    V_SCR = DArange * Q_new / Q_max
+                    secondPoint = 0 # deactivate getting a second grid point
+                    secondPoint_switch = 1 # activate control
             else:
-                
-                Q_new = Q_calc - 3/4 * mean_error_Q
-
-
-            SCR_supply  = 20000 # 0-20 kW
-            plug_supply = 120 # volts
-            wireLoops   = 3 # loops of wires around ...
-            DArange     = 5 # 0-5 volts
-            WTrange     = 10 # 0-10 V
-
-            V_SCR = DArange * Q_new / (SCR_supply / wireLoops)
-        else:
-
-            DAfile_list = open("DA_vals.txt").readlines()
-            V_SCR = DAfile_list[0].split()[1]                   # V_SCR remains uncontrolled
+                V_SCR = V_SCR_old                   # V_SCR remains uncontrolled, if error is within approximation error
              
-        counter = 0
-        sum_error_Q = 0
+            counter = 0
+            sum_error_Q = 0
+
+        else:                                       # V_SCR in the first 6 transit loops
+            V_SCR = DArange * Q_set_ / Q_max
+            v_scr.append(V_SCR_old)                 # in this case V_SCR and V_SCR_old should be the same
+            f_v_scr.append(Q_tot_in)
 
 ## control pump
 
         V_pump = 0
 
         writeDAfile()
-        print(round(currentTime,0),round(getTransitTime(),0))
-        print("V_SCR: %f" % V_SCR)
+        #print("V_SCR: %f" % V_SCR)
+
 
 
 
@@ -213,6 +245,10 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
 command = "sudo ./master"
 getParameters()
 start_clock = time.time()
+f_v_scr = deque(maxlen = 2)
+v_scr   = deque(maxlen = 2)
+secondPoint = 1
+secondPoint_switch = 0
 
 maxTimesteps = sys.maxsize
 sum_error_Q = 0
@@ -243,7 +279,8 @@ while True:
     calculationOfDA(Q_set, volumeFlowrate_set)
 
     # write Logfile
-    writeLogfile()
+    if currentTimestep % logfile_period == 0:
+        writeLogfile()
 
     if(currentTimestep >= maxTimesteps):
 	break

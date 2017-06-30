@@ -1,4 +1,4 @@
 Time[h]		Heatinlet[W]	Flowrate
 000		4000		376
 005		4000		468.3
-008		0		0		End of measurement
+012		0		0		End of measurement
