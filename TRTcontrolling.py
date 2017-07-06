@@ -16,7 +16,7 @@ def getTransitTime():
     t_transit = total_length * math.pi * pow(diameter,2)/ (4 * volumeFlow)
 
     ## testing
-    t_transit = 1.561
+    #t_transit = 1.561
     ##
     return t_transit
 
@@ -58,10 +58,25 @@ def readSetpoints(currentTs):
             Q_set = float(file_list[currentLine-1].split()[1])
             volumeFlowrate_set = float(file_list[currentLine-1].split()[2])
             break
+        
+###### for testing issues
+def readTemperature(currentTs):
+    global T_1,T_2
+    file_list = open("simulationData.txt").readlines() 
+    maxTimesteps = int(file_list[len(file_list)-1].split()[0])
+    
+    for currentLine in range(1,len(file_list)):
+
+        if currentTs < int(file_list[currentLine].split()[0]):
+
+            T_1 = float(file_list[currentLine-1].split()[1])
+            T_2 = float(file_list[currentLine-1].split()[2])
+            break
+##########
 
 def calculationOfDA(Q_set_,volumeFlowrate_set_):
    
-    global V_SCR, V_pump, T_1, T_2, Q_tot_in, Q_elec, volumeFlow, counter, sum_error_Q, secondPoint, secondPoint_switch
+    global V_SCR, V_pump, T_1, T_2, Q_tot_in, Q_elec, volumeFlow, counter, sum_error_Q, secondPoint_bool, secondPoint_switch
     R_T_ref = 1500
     totalPressure = 101325
     a_stein1 = 1.326e-3
@@ -73,6 +88,15 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     b_stein2 = 2.670e-4
     c_stein2 = -3.599e-6
     d_stein2 = 2.619e-7
+            
+    SCR_supply  = 20000             # 0-20 kW
+    #plug_supply = 120               # 120 V --> necessary?
+    wireLoops   = 2                 # loops of wires around
+    DArange     = 5                 # 0-5 V
+    ADrange     = 5                 # 0-5 V
+    WTrange     = 10                # 0-10 V
+    
+    Q_max = SCR_supply / wireLoops  # max possible heat inlet of heaters
     
 ######## update correct values
     a_flow = 2          
@@ -98,11 +122,12 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
 
     volumeFlow = a_flow + b_flow * V_flow #(m^3/s)
     
-    # testing
+# testing
     volumeFlow = 0.3e-3
-    T_2 = T_1 + 2
-    delta_p = 200000  
+    delta_p = 200000
+    #readTemperature(time.time() - start_clock) 
     ########
+
     
 #### add real equations for flow and pressure
               
@@ -111,110 +136,85 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
 
     c_p = PropsSI('Cpmass','T', T_mean, 'P', totalPressure,'Water')
     rho = PropsSI('Dmass','T', T_mean, 'P', totalPressure,'Water')
+    #c_p = 4182
+    #rho =  997.45
 
     Q_calc = math.fabs(rho * volumeFlow * c_p * (T_2 - T_1))
     Q_fric = delta_p * volumeFlow
 
     Q_tot_in = Q_calc + Q_fric
-
+    Q_elec = V_Q_elec / ADrange * Q_max         # Q = ADinput / max AD value * max available heat inlet
+    
     error_Q = Q_set_ - Q_tot_in
-
     sum_error_Q = sum_error_Q + error_Q
-    counter = counter + 1
-
-# add correct calculation from V_Q_elec
-    Q_elec = 3000
-
-    #print("counter: %d, sum_error_Q: %d" % (counter, sum_error_Q))
-    error_Flow = volumeFlow - volumeFlowrate_set_
     
-#### setzwerte aufsummieren und mittelwert bilden?
-#### wie PID Regler verwirklichen
+    counter = counter + 1                       # counter for the number of summed Q_errors
+
+    error_Flow = volumeFlow - volumeFlowrate_set_ # not needed for first approach
   
-    
     #print("Q_tot_in: %d, Q_set_: %d V_R1: %f, V_R2: %f, T_1: %f, T_2: %f, R_T1: %f, R_T2: %f, T_mean: %f" % (int(Q_tot_in), int(Q_set_), V_R1, V_R2, T_1-273.15, T_2-273.15, R_T1, R_T2, T_mean))
-
-#### Anderungen fuer die Setzwerte sollen langsam gemacht werden,
-#### zB 20 Messungen mit 5 Sekunden Unterschied
 
 #### spaeter soll zwischen Q_elec und dem Q_cal  gewichtet werden bis zum 6. Durchlauf,
 #### sodass ein langsamer uebergang zur Regelung entsteht
     
-
-
     currentTime = time.time() - start_clock
     
     # every time the fluid has transitted one time, new values are set and written into the DA file.
     if (round(currentTime,0) % round(getTransitTime(),0) == 0) or currentTime < 1:
         DAfile_list = open("DA_vals.txt").readlines()
-        V_SCR_old = DAfile_list[0].split()[1]
-        
-        SCR_supply  = 20000 # 0-20 kW
-        plug_supply = 120 # volts
-        wireLoops   = 2 # loops of wires around
-        DArange     = 5 # 0-5 V
-        WTrange     = 10 # 0-10 V
-        Q_max = SCR_supply / wireLoops
-        print(round(currentTime,0),round(getTransitTime(),0))
-        print(2 * getTransitTime(), currentTime)
-        print("first if statement")
+        V_SCR_old = float(DAfile_list[0].split()[1])
+        v_scr.append(V_SCR_old)                 # the current V_SCR results 
+        f_v_scr.append(Q_tot_in)                # in a certain heat inlet
+
+        #print(round(currentTime,0),round(getTransitTime(),0))
+        #print(2 * getTransitTime(), currentTime)
+        #print("first if statement")
         
         # if the fluid has transitted 6 times, the control method is activated
-# 6 * get Transit !!
-        if 2 * getTransitTime() < currentTime:
+# 6 * getTransit !!
+        if 6 * getTransitTime() < currentTime:
             mean_error_Q = sum_error_Q / counter
-            v_scr.append(V_SCR_old)
-            f_v_scr.append(Q_tot_in)
-            print("second if statement")
-
-            if abs(mean_error_Q) > 5:
+            #print("second if statement")
+# error greater than ?
+            if abs(mean_error_Q) > 2:
                 print("third if statement")
 # 6.5 
-                if 2.5 * getTransitTime() < currentTime and secondPoint_switch == 1: # actual control
+                if 6.5 * getTransitTime() < currentTime and secondPoint_switch == 1: # actual control
                     # secant method, modifing to a "root finding problem"
                     f_n_minus1 = float(f_v_scr[1]) - Q_set_
                     f_n_minus2 = float(f_v_scr[0]) - Q_set_
                     x_n_minus1 = float(v_scr[1])
                     x_n_minus2 = float(v_scr[0])
-                    # test
-                    f_n_minus1 = f_n_minus1 + 50
 
-                    print(f_n_minus1, f_n_minus2, x_n_minus1, x_n_minus2)
+                    #print(v_scr,f_v_scr)
+                    #print(f_n_minus1, x_n_minus1, f_n_minus2, x_n_minus2)
                     V_SCR =  x_n_minus1 - f_n_minus1 * (x_n_minus1 - x_n_minus2) / (f_n_minus1 - f_n_minus2)
-                    print("calculated V_SCR: %f" % V_SCR)
-                    print(v_scr,f_v_scr)
+                    
+                    #print("calculated V_SCR: %f, T_1: %f, T_2: %f, c_p: %f, rho: %f" % (V_SCR, T_1, T_2, c_p, rho))
 # 6.5                    
-                if 2.5 * getTransitTime() < currentTime and secondPoint == 1: # in order to get a second grid point (only needed one time)
-                    print("fourth if statement")
+                if 6.5 * getTransitTime() < currentTime and secondPoint_bool == 1: # in order to get a second grid point (only needed one time)
+                    #print("fourth if statement")
                     if mean_error_Q >= 0:                
                         Q_new = Q_calc + 3/4 * mean_error_Q
                     else:                
                         Q_new = Q_calc - 3/4 * abs(mean_error_Q)
                     V_SCR = DArange * Q_new / Q_max
-                    secondPoint = 0 # deactivate getting a second grid point
-                    secondPoint_switch = 1 # activate control
+                    secondPoint_bool = 0                 # deactivate getting a second grid point
+                    secondPoint_switch = 1               # activate control
             else:
-                V_SCR = V_SCR_old                   # V_SCR remains uncontrolled, if error is within approximation error
+                V_SCR = V_SCR_old                       # V_SCR remains uncontrolled, if error is within approximation error
              
             counter = 0
             sum_error_Q = 0
 
-        else:                                       # V_SCR in the first 6 transit loops
+        else:                                           # V_SCR in the first 6 transit loops
             V_SCR = DArange * Q_set_ / Q_max
-            v_scr.append(V_SCR_old)                 # in this case V_SCR and V_SCR_old should be the same
-            f_v_scr.append(Q_tot_in)
 
 ## control pump
-
         V_pump = 0
 
+        
         writeDAfile()
-        #print("V_SCR: %f" % V_SCR)
-
-
-
-
-
 
 
 ########################################################################
@@ -247,7 +247,7 @@ getParameters()
 start_clock = time.time()
 f_v_scr = deque(maxlen = 2)
 v_scr   = deque(maxlen = 2)
-secondPoint = 1
+secondPoint_bool = 1
 secondPoint_switch = 0
 
 maxTimesteps = sys.maxsize
@@ -272,8 +272,8 @@ while True:
     if currentTimestep % set_time == 0:
         readSetpoints(currentTimestep)
 
-#    AD_list = open("AD_vals.txt").readlines()
-#    print("ch0: %f, ch1: %f, ch2: %f, ch3: %f, ch4: %f, ch4: %f, ch6: %f" % (float(AD_list[0].split()[0]),float(AD_list[0].split()[1]),float(AD_list[0].split()[2]),float(AD_list[0].split()[3]),float(AD_list[0].split()[4]),float(AD_list[0].split()[5]),float(AD_list[0].split()[6])))
+    #AD_list = open("AD_vals.txt").readlines()
+    #print("ch0: %f, ch1: %f, ch2: %f, ch3: %f, ch4: %f, ch5: %f, ch6: %f" % (float(AD_list[0].split()[0]),float(AD_list[0].split()[1]),float(AD_list[0].split()[2]),float(AD_list[0].split()[3]),float(AD_list[0].split()[4]),float(AD_list[0].split()[5]),float(AD_list[0].split()[6])))
         
     # calculation of DA_values
     calculationOfDA(Q_set, volumeFlowrate_set)
