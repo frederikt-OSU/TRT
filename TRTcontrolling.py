@@ -92,9 +92,17 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     SCR_supply  = 20000             # 0-20 kW
     #plug_supply = 120               # 120 V --> necessary?
     wireLoops   = 2                 # loops of wires around
-    DArange     = 5                 # 0-5 V
+    DAlowSCR    = 0.004 * 220       # 0.004 amps * 220 ohm, get the right ampere value for the SCR from the DA voltage
+    DAhighSCR   = 0.02 * 220        # 0.02  amps * 220 ohm, s.a.
+    DArangeSCR  = DAhighSCR - DAlowSCR
+#old
+    DArange = DArangeSCR
+####
     ADrange     = 5                 # 0-5 V
     WTrange     = 10                # 0-10 V
+    pressureRange = 25 * 6894.757   # range of pressure sensor (0-25 psi) in pascal (1 psi = 6894.757 Pa)
+    P_range     = 5                 # 0-5 V
+    
     
     Q_max = SCR_supply / wireLoops  # max possible heat inlet of heaters
     
@@ -124,24 +132,25 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     
 # testing
     volumeFlow = 0.3e-3
-    delta_p = 200000
     #readTemperature(time.time() - start_clock) 
     ########
 
     
 #### add real equations for flow and pressure
-              
 
+
+    delta_p = pressureRange * V_deltaPressure / P_range
+    
     T_mean = (T_1 + T_2)/2
 
     c_p = PropsSI('Cpmass','T', T_mean, 'P', totalPressure,'Water')
     rho = PropsSI('Dmass','T', T_mean, 'P', totalPressure,'Water')
-    #c_p = 4182
-    #rho =  997.45
 
     Q_calc = math.fabs(rho * volumeFlow * c_p * (T_2 - T_1))
     Q_fric = delta_p * volumeFlow
-
+    
+    print("delta_p: %f, Q_fric: %f "%(delta_p, Q_fric))
+    
     Q_tot_in = Q_calc + Q_fric
     Q_elec = V_Q_elec / ADrange * Q_max         # Q = ADinput / max AD value * max available heat inlet
     
@@ -198,7 +207,7 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
                         Q_new = Q_calc + 3/4 * mean_error_Q
                     else:                
                         Q_new = Q_calc - 3/4 * abs(mean_error_Q)
-                    V_SCR = DArange * Q_new / Q_max
+                    V_SCR = DArangeSCR * Q_new / Q_max + DAlowSCR
                     secondPoint_bool = 0                 # deactivate getting a second grid point
                     secondPoint_switch = 1               # activate control
             else:
@@ -208,14 +217,16 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
             sum_error_Q = 0
 
         else:                                           # V_SCR in the first 6 transit loops
-            V_SCR = DArange * Q_set_ / Q_max
+            V_SCR = DArangeSCR * Q_set_ / Q_max + DAlowSCR
 
-## control pump
-        V_pump = 0
+    ## control pump, is made with VFD so far
+        V_pump = 4.8 
+        # testing
+        #V_SCR = 0
 
         
         writeDAfile()
-
+        print("DA0: %f, DA1: %f" % (V_pump, V_SCR))
 
 ########################################################################
         
@@ -272,9 +283,9 @@ while True:
     if currentTimestep % set_time == 0:
         readSetpoints(currentTimestep)
 
-    #AD_list = open("AD_vals.txt").readlines()
-    #print("ch0: %f, ch1: %f, ch2: %f, ch3: %f, ch4: %f, ch5: %f, ch6: %f" % (float(AD_list[0].split()[0]),float(AD_list[0].split()[1]),float(AD_list[0].split()[2]),float(AD_list[0].split()[3]),float(AD_list[0].split()[4]),float(AD_list[0].split()[5]),float(AD_list[0].split()[6])))
-        
+    AD_list = open("AD_vals.txt").readlines()
+    print("ch0: %f, ch1: %f, ch2: %f, ch3: %f, ch4: %f, ch5: %f, ch6: %f" % (float(AD_list[0].split()[0]),float(AD_list[0].split()[1]),float(AD_list[0].split()[2]),float(AD_list[0].split()[3]),float(AD_list[0].split()[4]),float(AD_list[0].split()[5]),float(AD_list[0].split()[6])))
+    
     # calculation of DA_values
     calculationOfDA(Q_set, volumeFlowrate_set)
 
