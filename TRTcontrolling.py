@@ -14,8 +14,9 @@ def getTransitTime():
     global avg_volumeFlow
     
     t_transit = total_length * math.pi * pow(diameter,2)/ (4 * avg_volumeFlow)
-    
+
     ## testing
+    print(t_transit)
     t_transit = 1.561
     ##
     return t_transit
@@ -28,6 +29,10 @@ def writeLogfile():
     # times 1000 for recalculation from m^3/s to L/s
     file_obj = open("logfile.txt","a")
     file_obj.write("%s\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t %f\t %f\t %f\t %f\t %f\t %f\t %f\t\t %f\n" % (time.strftime("%x %I:%M:%S %p"), avg_volumeFlow * 1000, Q_tot_in, Q_fric, Q_elec, T_1, T_2, delta_p, V_SCR, V_pump, V_S, V_G, V_R1, V_R2, V_flow, V_deltaPressure, V_Q_elec))
+    #testing
+    global expectedFlow
+    file_obj.write("expected flow rate: %f\n" % (expectedFlow * 1000))
+    ####
     file_obj.close()
 
 def writeDAfile():
@@ -61,20 +66,31 @@ def readSetpoints(currentTs):
             volumeFlowrate_set = float(file_list[currentLine-1].split()[2])
             break
 
-def averageVolumeFlow():
-    global avg_volumeFlow, sum_volumeFlow, flowCounter
+def averageVariables():
+    global avg_volumeFlow, sum_volumeFlow, counterAverageFunc
+    global avg_Q_elec, sum_Q_elec, avg_T1, avg_T2, sum_T1, sum_T2, sum_delta_p, avg_delta_p
     
-    avg_volumeFlow = sum_volumeFlow / flowCounter
+    avg_volumeFlow = sum_volumeFlow / counterAverageFunc
+    avg_Q_elec = sum_Q_elec / counterAverageFunc
+    avg_T1 = sum_T1 / counterAverageFunc
+    avg_T2 = sum_T2 / counterAverageFunc
+    avg_delta_p = sum_delta_p / counterAverageFunc
+    
     # set the counter and the summation to zero in order to calculate the new average
     sum_volumeFlow = 0
-    flowCounter = 0    
-
+    sum_Q_elec = 0
+    sum_T1 = 0
+    sum_T2 = 0
+    sum_delta_p = 0 
+    counterAverageFunc = 0
 
 def calculationOfDA(Q_set_,volumeFlowrate_set_):
    
     global V_SCR, V_pump, V_S, V_G, V_R1, V_R2, V_flow, V_deltaPressure, V_Q_elec
-    global T_1, T_2, Q_tot_in, Q_elec, Q_fric, avg_volumeFlow, delta_p
-    global counter, flowCounter, sum_error_Q, sum_volumeFlow, volumeFlow_switch, secondPoint_bool, secondPoint_switch
+    global T_1, T_2, Q_tot_in, Q_elec, Q_fric, avg_volumeFlow, avg_Q_elec, delta_p
+    global counter, counterAverageFunc, sum_Q_elec, sum_error_Q, sum_volumeFlow, average_switch, secondPoint_bool, secondPoint_switch
+    global sum_T1, sum_T2, avg_T1, avg_T2, sum_delta_p, avg_delta_p
+    
     R_T_ref = 1500
     totalPressure = 101325
     a_stein1 = 1.326e-3
@@ -100,7 +116,7 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     
 ######## update correct values
     a_flow = 0          
-    b_flow = 1
+    b_flow = 1.44
     
     AD_list = open("AD_vals.txt").readlines()
     V_S             = float(AD_list[0].split()[0])
@@ -119,40 +135,45 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     T_1 = 1/(a_stein1 + b_stein1 * math.log(R_T1) + c_stein1 * pow(math.log(R_T1),2) + d_stein1 * pow(math.log(R_T1),3))
     T_2 = 1/(a_stein2 + b_stein2 * math.log(R_T2) + c_stein2 * pow(math.log(R_T2),2) + d_stein2 * pow(math.log(R_T2),3))
 
-    volumeFlow = (a_flow + b_flow * V_flow ) * 0.000063090197
-    #volumeFlow = (a_flow + b_flow * (V_flow - V_G)) * 0.000063090197 #(m^3/s) (1 gpm = 0.000063090197 m^3/s) 
-    
-# testing
-    #volumeFlow = 0.3e-3
-    
-########
-
-    
-#### add real equations for flow
-    
+    #volumeFlow = (a_flow + b_flow * V_flow ) * 0.000063090197
+    volumeFlow = (a_flow + b_flow * (V_flow - V_G)) * 0.000063090197 #(m^3/s) (1 gpm = 0.000063090197 m^3/s) 
 
     #delta_p = pressureRange * V_deltaPressure / P_range    
     delta_p = pressureRange * (V_deltaPressure - V_G) / P_range
-    T_mean = (T_1 + T_2)/2
 
-    c_p = PropsSI('Cpmass','T', T_mean, 'P', totalPressure,'Water')
-    rho = PropsSI('Dmass','T', T_mean, 'P', totalPressure,'Water')
-
+    # calculate electrical heat inlet    
+    Q_elec = V_Q_elec  * 1000                   # the output of the watt transducer is directly proportional to the electrical heat inlet
+# test
+    Q_elec = 2.94 * 1000 # measured with multimeter
+    #Q_elec = (V_Q_elec - V_G) * 1000
+    
     # in order to get a start value for the volume flow rate, the first calculated value is passed
-    if volumeFlow_switch:
+    if average_switch:
         #time.sleep(2)                           # wait for the system to start flowing (only necessary, if system is switched directly before starting the program
         avg_volumeFlow = volumeFlow
-        volumeFlow_switch = 0
+        avg_Q_elec = Q_elec
+        avg_T1 = T_1
+        avg_T2 = T_2
+        avg_delta_p = delta_p
+        average_switch = 0
+
 # 20 sec        
     # every 20 seconds the readed flow rate is averaged in order to counteract to fluctuations of the pulse meter    
     currentTime = time.time() - start_clock
-    if round(currentTime,0) % 3 == 0:
-        averageVolumeFlow()
-        
-    # calculate electrical heat inlet    
-    Q_elec = V_Q_elec  * 1000
-    #Q_elec = (V_Q_elec - V_G) * 1000                    # the output of the watt transducer is directly proportional to the electrical heat inlet
+    if round(currentTime,0) % 8 == 0:
+        averageVariables()
 
+    # calculate parameters cp and rho
+    T_mean = (avg_T1 + avg_T2)/2
+    c_p = PropsSI('Cpmass','T', T_mean, 'P', totalPressure,'Water')
+    rho = PropsSI('Dmass','T', T_mean, 'P', totalPressure,'Water')     
+
+        
+    # testing
+    global expectedFlow
+    expectedFlow = avg_Q_elec / (rho * c_p * math.fabs(avg_T2 - avg_T1))
+    ############
+    
     # calculate calorimetric and frictional heat inlet
     Q_calc = math.fabs(rho * avg_volumeFlow * c_p * (T_2 - T_1))
     Q_fric = delta_p * avg_volumeFlow
@@ -160,12 +181,16 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     
     error_Q = Q_set_ - Q_tot_in
 
-    # for every run of the main loop, the volumeflow and the error in Q are summed in order to
+    # for every run of the main loop, the volumeflow, Q_elec, temperatures, pressure and the error in Q are summed in order to
     # average them afterwards with the "counter"
+    sum_Q_elec = sum_Q_elec + Q_elec
     sum_volumeFlow = sum_volumeFlow + volumeFlow
+    sum_T1 = sum_T1 + T_1
+    sum_T2 = sum_T2 + T_2
+    sum_delta_p = sum_delta_p + delta_p
     sum_error_Q = sum_error_Q + error_Q
-    flowCounter = flowCounter + 1               # counter for averageing for the logfile  
-    counter = counter + 1                       # counter for averageing error in Q
+    counterAverageFunc = counterAverageFunc + 1         # counter for averaging of flow rate, temperatures and electrical heat inlet  
+    counter = counter + 1                       # counter for averaging error in Q
     
     currentTime = time.time() - start_clock
     transitTime = getTransitTime()
@@ -214,7 +239,7 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     ## control of the pump is made with VFD so far
         V_pump = 0 
         # testing
-        V_SCR = 1.6 # 1.6 -> 1000 W
+        V_SCR = 2.5 # 1.6 -> 1000 W
         
         writeDAfile()
 
@@ -255,9 +280,13 @@ secondPoint_switch = 0
 maxTimesteps = sys.maxsize
 sum_error_Q = 0
 sum_volumeFlow = 0
+sum_Q_elec = 0
+sum_T1 = 0
+sum_T2 = 0
+sum_delta_p = 0
 counter = 0
-flowCounter = 0
-volumeFlow_switch = 1
+counterAverageFunc = 0
+average_switch = 1
 
 # initialize logfile
 file_obj = open("logfile.txt","w")
@@ -282,7 +311,7 @@ while True:
 
     AD_list = open("AD_vals.txt").readlines()
     DA_list = open("DA_vals.txt").readlines()
-    print("V_S(ch0): %f, V_G(ch1): %f, V_R1(ch2): %f, V_R2(ch3): %f, V_flow(ch4): %f, V_pres(ch5): %f, V_Q_elec(ch6): %f, V_WTtest: %f" % (float(AD_list[0].split()[0]),float(AD_list[0].split()[1]),float(AD_list[0].split()[2]),float(AD_list[0].split()[3]),float(AD_list[0].split()[4]),float(AD_list[0].split()[5]),float(AD_list[0].split()[6]),float(AD_list[0].split()[7])))
+    print("V_S(ch0): %f, V_G(ch1): %f, V_R1(ch2): %f, V_R2(ch3): %f, V_flow(ch4): %f, V_pres(ch5): %f, noSig-V_Q_elec(ch6): %f, noSig: %f" % (float(AD_list[0].split()[0]),float(AD_list[0].split()[1]),float(AD_list[0].split()[2]),float(AD_list[0].split()[3]),float(AD_list[0].split()[4]),float(AD_list[0].split()[5]),float(AD_list[0].split()[6]),float(AD_list[0].split()[7])))
     print("DA0: %f, DA1: %f" % (float(DA_list[0].split()[0]), float(DA_list[0].split()[1])))
     
     # write Logfile
