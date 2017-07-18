@@ -11,28 +11,28 @@ os.environ['TZ'] = 'America/Chicago'
 
 #########################    functions   #################################
 def getTransitTime():
-    global avg_volumeFlow
+    global volumeFlow
     
-    t_transit = total_length * math.pi * pow(diameter,2)/ (4 * avg_volumeFlow)
+    t_transit = total_length * math.pi * pow(diameter,2)/ (4 * volumeFlow)
 
-    ## testing
+## testing
     print(t_transit)
-    t_transit = 1.561
+#    t_transit = 1.561
     ##
     return t_transit
 
 def writeLogfile():
-
-    global V_SCR, V_pump, V_S, V_G, V_R1, V_R2, V_flow, V_deltaPressure, V_Q_elec
-    global avg_volumeFlow, Q_tot_in, Q_elec, Q_fric, T_1, T_2, delta_p
+    global V_SCR, V_pump, avgV_S, avgV_G, avgV_R1, avgV_R2, avgV_flow, avgV_deltaPressure, avgV_Q_elec
+    global volumeFlow, Q_tot_in, Q_elec, Q_fric, T_1, T_2, delta_p
 
     # times 1000 for recalculation from m^3/s to L/s
     file_obj = open("logfile.txt","a")
-    file_obj.write("%s\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t %f\t %f\t %f\t %f\t %f\t %f\t %f\t\t %f\n" % (time.strftime("%x %I:%M:%S %p"), avg_volumeFlow * 1000, Q_tot_in, Q_fric, Q_elec, T_1, T_2, delta_p, V_SCR, V_pump, V_S, V_G, V_R1, V_R2, V_flow, V_deltaPressure, V_Q_elec))
-    #testing
-    global expectedFlow
-    file_obj.write("expected flow rate: %f\n" % (expectedFlow * 1000))
-    ####
+    file_obj.write("%s\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t %f\t %f\t %f\t %f\t %f\t %f\t %f\t\t %f\n" % (time.strftime("%x %I:%M:%S %p"), volumeFlow * 1000, Q_tot_in, Q_fric, Q_elec, T_1, T_2, delta_p, V_SCR, V_pump, avgV_S, avgV_G, avgV_R1, avgV_R2, avgV_flow, avgV_deltaPressure, avgV_Q_elec))
+
+#testing
+    #global expectedFlow
+    #file_obj.write("expected flow rate: %f\n" % (expectedFlow * 1000))
+####
     file_obj.close()
 
 def writeDAfile():
@@ -48,48 +48,57 @@ def getParameters():
     file_list = open("Parameters.txt").readlines()
     diameter = float(file_list[1].split()[0])
     total_length = float(file_list[1].split()[1]) + float(file_list[1].split()[2])
-    set_time = int(file_list[1].split()[3])
+    set_time = int(file_list[1].split()[3]) * 60                        # times 60, because program is working in seconds
     logfile_period = int(file_list[1].split()[4])
     V_ref_set = float(file_list[1].split()[5])
     
-def readSetpoints(currentTs):
+def readSetpoints(currentTs, Q_setOld):
     global maxTimesteps, Q_set, volumeFlowrate_set
 
     file_list = open("Setpoints.txt").readlines() 
-    maxTimesteps = int(file_list[len(file_list)-1].split()[0])
+    maxTimesteps = int(file_list[len(file_list)-1].split()[0]) * 60     # times 60, because program is working in seconds
     
     for currentLine in range(1,len(file_list)):
 
-        if currentTs < int(file_list[currentLine].split()[0]):
+        if currentTs < int(file_list[currentLine].split()[0]) * 60:
 
             Q_set = float(file_list[currentLine-1].split()[1])
             volumeFlowrate_set = float(file_list[currentLine-1].split()[2])
+            if Q_set != Q_setOld:
+                print("Q_set switched")
+# start_clock has to be started here again in order to wait another 6 transit times before switching to the control schematic
             break
 
 def averageVariables():
-    global avg_volumeFlow, sum_volumeFlow, counterAverageFunc
-    global avg_Q_elec, sum_Q_elec, avg_T1, avg_T2, sum_T1, sum_T2, sum_delta_p, avg_delta_p
+    global counterAverageFunc
+    global avgV_S, avgV_G, avgV_R1, avgV_R2, avgV_flow, avgV_deltaPressure, avgV_Q_elec
+    global sumV_S, sumV_G, sumV_R1, sumV_R2, sumV_flow, sumV_deltaPressure, sumV_Q_elec
+
+    avgV_S = sumV_S / counterAverageFunc
+    avgV_G = sumV_G / counterAverageFunc
+    avgV_R1 = sumV_R1 / counterAverageFunc
+    avgV_R2 = sumV_R2 / counterAverageFunc
+    avgV_flow = sumV_flow / counterAverageFunc
+    avgV_deltaPressure = sumV_deltaPressure / counterAverageFunc
+    avgV_Q_elec = sumV_Q_elec / counterAverageFunc
     
-    avg_volumeFlow = sum_volumeFlow / counterAverageFunc
-    avg_Q_elec = sum_Q_elec / counterAverageFunc
-    avg_T1 = sum_T1 / counterAverageFunc
-    avg_T2 = sum_T2 / counterAverageFunc
-    avg_delta_p = sum_delta_p / counterAverageFunc
-    
-    # set the counter and the summation to zero in order to calculate the new average
-    sum_volumeFlow = 0
-    sum_Q_elec = 0
-    sum_T1 = 0
-    sum_T2 = 0
-    sum_delta_p = 0 
+    # set the counter and the summation to zero in order to calculate the new average    
+    sumV_S = 0
+    sumV_G = 0
+    sumV_R1 = 0
+    sumV_R2 = 0
+    sumV_flow = 0
+    sumV_deltaPressure = 0
+    sumV_Q_elec = 0
     counterAverageFunc = 0
 
-def calculationOfDA(Q_set_,volumeFlowrate_set_):
-   
+def calculationOfDA(Q_set_,volumeFlowrate_set_):   
     global V_SCR, V_pump, V_S, V_G, V_R1, V_R2, V_flow, V_deltaPressure, V_Q_elec
-    global T_1, T_2, Q_tot_in, Q_elec, Q_fric, avg_volumeFlow, avg_Q_elec, delta_p
-    global counter, counterAverageFunc, sum_Q_elec, sum_error_Q, sum_volumeFlow, average_switch, secondPoint_bool, secondPoint_switch
-    global sum_T1, sum_T2, avg_T1, avg_T2, sum_delta_p, avg_delta_p
+    global T_1, T_2, Q_tot_in, Q_elec, Q_fric, volumeFlow, delta_p
+    global counter, counterAverageFunc, average_switch, secondPoint_bool, secondPoint_switch
+
+    global avgV_S, avgV_G, avgV_R1, avgV_R2, avgV_flow, avgV_deltaPressure, avgV_Q_elec, avg_error_Q
+    global sumV_S, sumV_G, sumV_R1, sumV_R2, sumV_flow, sumV_deltaPressure, sumV_Q_elec, sum_error_Q
     
     R_T_ref = 1500
     totalPressure = 101325
@@ -116,7 +125,7 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     
 ######## update correct values
     a_flow = 0          
-    b_flow = 1.44
+    b_flow = 1.42 # after test
     
     AD_list = open("AD_vals.txt").readlines()
     V_S             = float(AD_list[0].split()[0])
@@ -126,71 +135,76 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     V_flow          = float(AD_list[0].split()[4])
     V_deltaPressure = float(AD_list[0].split()[5])
     V_Q_elec        = float(AD_list[0].split()[6])
+
+    # for every run of the main loop, voltage values are summed in order to
+    # average them afterwards with the "counter"
+    sumV_S = sumV_S + V_S
+    sumV_G = sumV_G + V_G
+    sumV_R1 = sumV_R1 + V_R1
+    sumV_R2 = sumV_R2 + V_R2
+    sumV_flow = sumV_flow + V_flow
+    sumV_deltaPressure = sumV_deltaPressure + V_deltaPressure
+    sumV_Q_elec = sumV_Q_elec + V_Q_elec
+    counterAverageFunc = counterAverageFunc + 1  # counter for averaging of flow rate, temperatures and electrical heat inlet
+    
+    # in order to get a start value for the volume flow rate, the first calculated value is passed
+    if average_switch:
+        #time.sleep(2)                           # wait for the system to start flowing (only necessary, if system is switched directly before starting the program
+        avgV_S = V_S
+        avgV_G = V_G
+        avgV_R1 = V_R1
+        avgV_R2 = V_R2
+        avgV_flow = V_flow
+        avgV_deltaPressure = V_deltaPressure
+        avgV_Q_elec = V_Q_elec
+        average_switch = 0
+        
+    # 2 seconds before the logfile is written, all voltage inputs are averaged and therefore the calculated variables    
+    currentTime = time.time() - start_clock
+    if round(currentTime,0) % (logfile_period - 2) == 0:
+        averageVariables()
    
     # calculate resistance of thermistors
-    R_T1 = (V_S - V_R1) / (V_R1 - V_G) * R_T_ref;
-    R_T2 = (V_S - V_R2) / (V_R2 - V_G) * R_T_ref;    
+    R_T1 = (avgV_S - avgV_R1) / (avgV_R1 - avgV_G) * R_T_ref;
+    R_T2 = (avgV_S - avgV_R2) / (avgV_R2 - avgV_G) * R_T_ref;    
     
     # calculate temperature with Steinhart-Hart equation
     T_1 = 1/(a_stein1 + b_stein1 * math.log(R_T1) + c_stein1 * pow(math.log(R_T1),2) + d_stein1 * pow(math.log(R_T1),3))
     T_2 = 1/(a_stein2 + b_stein2 * math.log(R_T2) + c_stein2 * pow(math.log(R_T2),2) + d_stein2 * pow(math.log(R_T2),3))
 
-    #volumeFlow = (a_flow + b_flow * V_flow ) * 0.000063090197
-    volumeFlow = (a_flow + b_flow * (V_flow - V_G)) * 0.000063090197 #(m^3/s) (1 gpm = 0.000063090197 m^3/s) 
+    #volumeFlow = (a_flow + b_flow * avgV_flow ) * 0.000063090197
+    volumeFlow = (a_flow + b_flow * (avgV_flow - avgV_G)) * 0.000063090197 #(m^3/s) (1 gpm = 0.000063090197 m^3/s) 
 
-    #delta_p = pressureRange * V_deltaPressure / P_range    
-    delta_p = pressureRange * (V_deltaPressure - V_G) / P_range
+    #delta_p = pressureRange * avgV_deltaPressure / P_range    
+    delta_p = pressureRange * (avgV_deltaPressure - avgV_G) / P_range
 
     # calculate electrical heat inlet    
-    Q_elec = V_Q_elec  * 1000                   # the output of the watt transducer is directly proportional to the electrical heat inlet
-# test
-    Q_elec = 2.94 * 1000 # measured with multimeter
-    #Q_elec = (V_Q_elec - V_G) * 1000
-    
-    # in order to get a start value for the volume flow rate, the first calculated value is passed
-    if average_switch:
-        #time.sleep(2)                           # wait for the system to start flowing (only necessary, if system is switched directly before starting the program
-        avg_volumeFlow = volumeFlow
-        avg_Q_elec = Q_elec
-        avg_T1 = T_1
-        avg_T2 = T_2
-        avg_delta_p = delta_p
-        average_switch = 0
+    Q_elec = avgV_Q_elec  * 1000                 # the output of the watt transducer is directly proportional to the electrical heat inlet
 
-# 20 sec        
-    # every 20 seconds the readed flow rate is averaged in order to counteract to fluctuations of the pulse meter    
-    currentTime = time.time() - start_clock
-    if round(currentTime,0) % 8 == 0:
-        averageVariables()
+# test
+    Q_elec = 0 # measured with multimeter
+    #Q_elec = (V_Q_elec - V_G) * 1000
 
     # calculate parameters cp and rho
-    T_mean = (avg_T1 + avg_T2)/2
+    T_mean = (T_1 + T_2)/2
     c_p = PropsSI('Cpmass','T', T_mean, 'P', totalPressure,'Water')
     rho = PropsSI('Dmass','T', T_mean, 'P', totalPressure,'Water')     
-
         
-    # testing
-    global expectedFlow
-    expectedFlow = avg_Q_elec / (rho * c_p * math.fabs(avg_T2 - avg_T1))
-    ############
+# testing
+    #global expectedFlow
+    #expectedFlow = Q_elec / (rho * c_p * math.fabs(T_2 - T_1))
+############
     
     # calculate calorimetric and frictional heat inlet
-    Q_calc = math.fabs(rho * avg_volumeFlow * c_p * (T_2 - T_1))
-    Q_fric = delta_p * avg_volumeFlow
+    Q_calc = math.fabs(rho * volumeFlow * c_p * (T_2 - T_1))
+    Q_fric = delta_p * volumeFlow
     Q_tot_in = Q_calc + Q_fric
     
     error_Q = Q_set_ - Q_tot_in
 
-    # for every run of the main loop, the volumeflow, Q_elec, temperatures, pressure and the error in Q are summed in order to
-    # average them afterwards with the "counter"
-    sum_Q_elec = sum_Q_elec + Q_elec
-    sum_volumeFlow = sum_volumeFlow + volumeFlow
-    sum_T1 = sum_T1 + T_1
-    sum_T2 = sum_T2 + T_2
-    sum_delta_p = sum_delta_p + delta_p
-    sum_error_Q = sum_error_Q + error_Q
-    counterAverageFunc = counterAverageFunc + 1         # counter for averaging of flow rate, temperatures and electrical heat inlet  
-    counter = counter + 1                       # counter for averaging error in Q
+    # for every run of the main loop, errors in Q are summed in order to average them afterwards with the "counter"
+    sum_error_Q = sum_error_Q + error_Q 
+    counter = counter + 1
     
     currentTime = time.time() - start_clock
     transitTime = getTransitTime()
@@ -205,41 +219,48 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
         
         # if the fluid has transitted 6 times, the control method is activated
 # 6 * transitTime !!
-        if 6 * transitTime < currentTime:
+        if 1 * transitTime < currentTime:
             avg_error_Q = sum_error_Q / counter
 
 # 6.5 
-            if 6.5 * transitTime < currentTime and secondPoint_switch == 1: # actual control
+            if 1.5 * transitTime < currentTime and secondPoint_switch == 1: # actual control
                 # secant method, modifing to a "root finding problem"
                 f_n_minus1 = float(f_v_scr[1]) - Q_set_
                 f_n_minus2 = float(f_v_scr[0]) - Q_set_
                 x_n_minus1 = float(v_scr[1])
                 x_n_minus2 = float(v_scr[0])
-
-                #print(v_scr,f_v_scr)
-                #print(f_n_minus1, x_n_minus1, f_n_minus2, x_n_minus2)
-                V_SCR =  x_n_minus1 - f_n_minus1 * (x_n_minus1 - x_n_minus2) / (f_n_minus1 - f_n_minus2)
+                list1 = [float(f_v_scr[1]), float(f_v_scr[0])]
+                list2 = [float(v_scr[1]), float(v_scr[0])]
+                
+## hier weitermachen, erste if abfrage verhindert die aenderung anscheinend fuer immer. s. logfile
+                print(v_scr,f_v_scr)
+                print(f_n_minus1, x_n_minus1, f_n_minus2, x_n_minus2)
+                if list1.index(max(list1)) == list2.index(max(list2)):  # accounts for "wrong points": if the order that a higher V_SCR gives a higher heat inlet is not provided
+                    if f_n_minus1 != f_n_minus2:    # to account for division by zero: It could appear that the transition time is lower after averaging, because of new values, which can cause division by zero.
+                        V_SCR =  x_n_minus1 - f_n_minus1 * (x_n_minus1 - x_n_minus2) / (f_n_minus1 - f_n_minus2)
 # 6.5                    
-            if 6.5 * transitTime < currentTime and secondPoint_bool == 1: # in order to get a second grid point (only needed one time)
+            if 1.5 * transitTime < currentTime and secondPoint_bool == 1: # in order to get a second grid point (only needed one time)
                 #print("fourth if statement")
                 if avg_error_Q >= 0:                
-                    Q_new = Q_calc + 3/4 * avg_error_Q
+                    Q_new = Q_calc + 0.25 * abs(avg_error_Q)
                 else:                
-                    Q_new = Q_calc - 3/4 * abs(avg_error_Q)
+                    Q_new = Q_calc - 0.25 * abs(avg_error_Q)
                 V_SCR = DArangeSCR * Q_new / Q_max + DAlowSCR
-                secondPoint_bool = 0                 # deactivate getting a second grid point
-                secondPoint_switch = 1               # activate control
+                secondPoint_bool = 0             # deactivate getting a second grid point
+                secondPoint_switch = 1           # activate control
 
             counter = 0
             sum_error_Q = 0
 
-        else:                                        # V_SCR in the first 6 transit loops          
+        else:                                    # V_SCR in the first 6 transit loops          
             V_SCR = DArangeSCR * Q_set_ / Q_max + DAlowSCR
+# 
+            V_SCR = 1.4
             
     ## control of the pump is made with VFD so far
         V_pump = 0 
-        # testing
-        V_SCR = 2.5 # 1.6 -> 1000 W
+# testing
+        #V_SCR = 1.4 # 1.6 -> 1000 W
         
         writeDAfile()
 
@@ -278,19 +299,26 @@ secondPoint_bool = 1
 secondPoint_switch = 0
 
 maxTimesteps = sys.maxsize
+sumV_S = 0
+sumV_G = 0
+sumV_R1 = 0
+sumV_R2 = 0
+sumV_flow = 0
+sumV_deltaPressure = 0
+sumV_Q_elec = 0
 sum_error_Q = 0
-sum_volumeFlow = 0
-sum_Q_elec = 0
-sum_T1 = 0
-sum_T2 = 0
-sum_delta_p = 0
+
 counter = 0
 counterAverageFunc = 0
 average_switch = 1
 
+# initialize first set point
+Qlist = open("Setpoints.txt").readlines() 
+Q_set = float(Qlist[1].split()[1])
+
 # initialize logfile
 file_obj = open("logfile.txt","w")
-file_obj.write("Date/Time\t\t Flow rate(obs)[L/s]\t Heat inlet(tot)[W]\t Heat inlet(fric)[W]\t Heat inlet(elec)[W]\t Temperature 1(obs)[K]\t Temperature 2(obs)[K]\t Pressure drop[Pa]\t V_SCR\t\t V_pump\t\t V_S\t\t V_G\t\t V_R1\t\t V_R2\t\t V_flow\t\t V_deltaPressure\t V_Q_elec\n")
+file_obj.write("Date/Time\t\t Flow rate(obs)[L/s]\t Heat inlet(tot)[W]\t Heat inlet(fric)[W]\t Heat inlet(elec)[W]\t Temperature 1(obs)[K]\t Temperature 2(obs)[K]\t Pressure drop[Pa]\t V_SCR\t\t V_pump\t\t V_S\t\t V_G\t\t V_R1\t\t V_R2\t\t V_flow\t\t V_deltaPressure\t (no signal)V_Q_elec\n")
 file_obj.close()
 
 while True:
@@ -298,13 +326,13 @@ while True:
     currentTimestep = round(time.time() - start_clock,0)
 
     # run master script: read and set DA, read and write AD
-    master_clock1 = time.time()
+    #master_clock1 = time.time()
     os.system(command)
-    master_clock2 = time.time()
+    #master_clock2 = time.time()
 
     # read setpoints, if required
     if currentTimestep % set_time == 0:
-        readSetpoints(currentTimestep)
+        readSetpoints(currentTimestep, Q_set)
         
     # calculation of DA_values
     calculationOfDA(Q_set, volumeFlowrate_set)
@@ -312,7 +340,7 @@ while True:
     AD_list = open("AD_vals.txt").readlines()
     DA_list = open("DA_vals.txt").readlines()
     print("V_S(ch0): %f, V_G(ch1): %f, V_R1(ch2): %f, V_R2(ch3): %f, V_flow(ch4): %f, V_pres(ch5): %f, noSig-V_Q_elec(ch6): %f, noSig: %f" % (float(AD_list[0].split()[0]),float(AD_list[0].split()[1]),float(AD_list[0].split()[2]),float(AD_list[0].split()[3]),float(AD_list[0].split()[4]),float(AD_list[0].split()[5]),float(AD_list[0].split()[6]),float(AD_list[0].split()[7])))
-    print("DA0: %f, DA1: %f" % (float(DA_list[0].split()[0]), float(DA_list[0].split()[1])))
+    print("currentTime: %d, DA1: %f" % (currentTimestep, float(DA_list[0].split()[1])))
     
     # write Logfile
     if currentTimestep % logfile_period == 0:
