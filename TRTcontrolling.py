@@ -114,7 +114,7 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
             
     SCR_maxAmps  = 30               # max ampere from the SCR to the system
     SCR_voltSupply = 200            # volt supply from the SCR to the system
-    DAlowSCR    = 1                 # figured out with trail
+    DAlowSCR    = 1               # figured out with trail
     DAhighSCR   = 4.6               # figured out with trail
     ADrange     = 5                 # 0-5 V
     pressureRange = 25 * 6894.757   # range of pressure sensor (0-25 psi) in pascal (1 psi = 6894.757 Pa)
@@ -189,7 +189,7 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     T_mean = (T_1 + T_2)/2
     c_p = PropsSI('Cpmass','T', T_mean, 'P', totalPressure,'Water')
     rho = PropsSI('Dmass','T', T_mean, 'P', totalPressure,'Water')     
-        
+    print(PropsSI('Dmass','T', 294.5, 'P', totalPressure,'Water'))   
 # testing
     #global expectedFlow
     #expectedFlow = Q_elec / (rho * c_p * math.fabs(T_2 - T_1))
@@ -200,11 +200,11 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     Q_fric = delta_p * volumeFlow
     Q_tot_in = Q_calc + Q_fric
     
-    error_Q = Q_set_ - Q_tot_in
+##    error_Q = Q_set_ - Q_tot_in
 
     # for every run of the main loop, errors in Q are summed in order to average them afterwards with the "counter"
-    sum_error_Q = sum_error_Q + error_Q 
-    counter = counter + 1
+##    sum_error_Q = sum_error_Q + error_Q 
+##    counter = counter + 1
     
     currentTime = time.time() - start_clock
     transitTime = getTransitTime()
@@ -220,7 +220,7 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
         # if the fluid has transitted 6 times, the control method is activated
 # 6 * transitTime !!
         if 1 * transitTime < currentTime:
-            avg_error_Q = sum_error_Q / counter
+##            avg_error_Q = sum_error_Q / counter
 
 # 6.5 
             if 1.5 * transitTime < currentTime and secondPoint_switch == 1: # actual control
@@ -232,35 +232,40 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
                 list1 = [float(f_v_scr[1]), float(f_v_scr[0])]
                 list2 = [float(v_scr[1]), float(v_scr[0])]
                 
-## hier weitermachen, erste if abfrage verhindert die aenderung anscheinend fuer immer. s. logfile
                 print(v_scr,f_v_scr)
                 print(f_n_minus1, x_n_minus1, f_n_minus2, x_n_minus2)
-                if list1.index(max(list1)) == list2.index(max(list2)):  # accounts for "wrong points": if the order that a higher V_SCR gives a higher heat inlet is not provided
+
+                if list1.index(max(list1)) == list2.index(max(list2)):  # accounts for "wrong points": if the order that a higher V_SCR gives a higher heat inlet is not provided, no change in V_SCR is made.
+                    print("--------------------correct points----------------------")
                     if f_n_minus1 != f_n_minus2:    # to account for division by zero: It could appear that the transition time is lower after averaging, because of new values, which can cause division by zero.
+                        print("-----------------------secant step------------------------")
                         V_SCR =  x_n_minus1 - f_n_minus1 * (x_n_minus1 - x_n_minus2) / (f_n_minus1 - f_n_minus2)
+                if x_n_minus1 == x_n_minus2: # if the V_SCR value remains the same, the control is not active anymore, because the secant method stays at the same point.
+                    print("--------------------manipulate V_SCR----------------------")
+                    V_SCR = V_SCR + 0.0005
 # 6.5                    
             if 1.5 * transitTime < currentTime and secondPoint_bool == 1: # in order to get a second grid point (only needed one time)
                 #print("fourth if statement")
-                if avg_error_Q >= 0:                
-                    Q_new = Q_calc + 0.25 * abs(avg_error_Q)
-                else:                
-                    Q_new = Q_calc - 0.25 * abs(avg_error_Q)
-                V_SCR = DArangeSCR * Q_new / Q_max + DAlowSCR
+##                if avg_error_Q >= 0:                
+##                    Q_new = Q_calc # + 0.25 * abs(avg_error_Q)
+##                else:                
+##                    Q_new = Q_calc # - 0.25 * abs(avg_error_Q)
+##                V_SCR = DArangeSCR * Q_new / Q_max + DAlowSCR
+                V_SCR = V_SCR - 0.1 # -0.5 is randomly picked. The only requirement is that V_SCR is changed.
                 secondPoint_bool = 0             # deactivate getting a second grid point
                 secondPoint_switch = 1           # activate control
 
-            counter = 0
-            sum_error_Q = 0
+##            counter = 0
+##            sum_error_Q = 0
 
         else:                                    # V_SCR in the first 6 transit loops          
-            V_SCR = DArangeSCR * Q_set_ / Q_max + DAlowSCR
-# 
-            V_SCR = 1.4
+            V_SCR = DArangeSCR * Q_set_ / Q_max + DAlowSCR - 0.3 
+# minus 0.3 ? 
             
     ## control of the pump is made with VFD so far
         V_pump = 0 
 # testing
-        #V_SCR = 1.4 # 1.6 -> 1000 W
+        V_SCR = 0 # 1.6 -> 1000 W
         
         writeDAfile()
 
@@ -325,10 +330,8 @@ while True:
 
     currentTimestep = round(time.time() - start_clock,0)
 
-    # run master script: read and set DA, read and write AD
-    #master_clock1 = time.time()
+    # run master script (written in C): read and set DA, read and write AD
     os.system(command)
-    #master_clock2 = time.time()
 
     # read setpoints, if required
     if currentTimestep % set_time == 0:
