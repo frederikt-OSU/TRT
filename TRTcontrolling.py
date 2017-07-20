@@ -28,11 +28,6 @@ def writeLogfile():
     # times 1000 for recalculation from m^3/s to L/s
     file_obj = open("logfile.txt","a")
     file_obj.write("%s\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t\t %f\t %f\t %f\t %f\t %f\t %f\t %f\t %f\t\t %f\n" % (time.strftime("%x %I:%M:%S %p"), volumeFlow * 1000, Q_tot_in, Q_fric, Q_elec, T_1, T_2, delta_p, V_SCR, V_pump, avgV_S, avgV_G, avgV_R1, avgV_R2, avgV_flow, avgV_deltaPressure, avgV_Q_elec))
-
-#testing
-    #global expectedFlow
-    #file_obj.write("expected flow rate: %f\n" % (expectedFlow * 1000))
-####
     file_obj.close()
 
 def writeDAfile():
@@ -95,10 +90,10 @@ def averageVariables():
 def calculationOfDA(Q_set_,volumeFlowrate_set_):   
     global V_SCR, V_pump, V_S, V_G, V_R1, V_R2, V_flow, V_deltaPressure, V_Q_elec
     global T_1, T_2, Q_tot_in, Q_elec, Q_fric, volumeFlow, delta_p
-    global counter, counterAverageFunc, average_switch, secondPoint_bool, secondPoint_switch
+    global counterAverageFunc, average_switch, secondPoint_bool, secondPoint_switch
 
-    global avgV_S, avgV_G, avgV_R1, avgV_R2, avgV_flow, avgV_deltaPressure, avgV_Q_elec, avg_error_Q
-    global sumV_S, sumV_G, sumV_R1, sumV_R2, sumV_flow, sumV_deltaPressure, sumV_Q_elec, sum_error_Q
+    global avgV_S, avgV_G, avgV_R1, avgV_R2, avgV_flow, avgV_deltaPressure, avgV_Q_elec
+    global sumV_S, sumV_G, sumV_R1, sumV_R2, sumV_flow, sumV_deltaPressure, sumV_Q_elec
     
     R_T_ref = 1500
     totalPressure = 101325
@@ -114,8 +109,8 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
             
     SCR_maxAmps  = 30               # max ampere from the SCR to the system
     SCR_voltSupply = 200            # volt supply from the SCR to the system
-    DAlowSCR    = 1               # figured out with trail
-    DAhighSCR   = 4.6               # figured out with trail
+    DAlowSCR    = 1                 # figured out with measurement
+    DAhighSCR   = 4.6               # figured out with measurement
     ADrange     = 5                 # 0-5 V
     pressureRange = 25 * 6894.757   # range of pressure sensor (0-25 psi) in pascal (1 psi = 6894.757 Pa)
     P_range     = 5                 # 0-5 V
@@ -123,9 +118,8 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     DArangeSCR  = DAhighSCR - DAlowSCR    
     Q_max = SCR_maxAmps * SCR_voltSupply  # max possible heat inlet of heaters
     
-######## update correct values
     a_flow = 0          
-    b_flow = 1.42 # after test
+    b_flow = 0.0001004007
     
     AD_list = open("AD_vals.txt").readlines()
     V_S             = float(AD_list[0].split()[0])
@@ -147,9 +141,10 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     sumV_Q_elec = sumV_Q_elec + V_Q_elec
     counterAverageFunc = counterAverageFunc + 1  # counter for averaging of flow rate, temperatures and electrical heat inlet
     
-    # in order to get a start value for the volume flow rate, the first calculated value is passed
+    # in order to get a start value for the volume flow rate, the first calculated value is passed.
+    # afterwards this if statement is "switched off"
     if average_switch:
-        #time.sleep(2)                           # wait for the system to start flowing (only necessary, if system is switched directly before starting the program
+        #time.sleep(2)                           # wait for the system to start flowing (only necessary, if program starts before the pump is started.
         avgV_S = V_S
         avgV_G = V_G
         avgV_R1 = V_R1
@@ -159,7 +154,7 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
         avgV_Q_elec = V_Q_elec
         average_switch = 0
         
-    # 2 seconds before the logfile is written, all voltage inputs are averaged and therefore the calculated variables    
+    # two seconds before the logfile is written, all voltage inputs are averaged and therefore the calculated variables    
     currentTime = time.time() - start_clock
     if round(currentTime,0) % (logfile_period - 2) == 0:
         averageVariables()
@@ -172,10 +167,10 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     T_1 = 1/(a_stein1 + b_stein1 * math.log(R_T1) + c_stein1 * pow(math.log(R_T1),2) + d_stein1 * pow(math.log(R_T1),3))
     T_2 = 1/(a_stein2 + b_stein2 * math.log(R_T2) + c_stein2 * pow(math.log(R_T2),2) + d_stein2 * pow(math.log(R_T2),3))
 
-    #volumeFlow = (a_flow + b_flow * avgV_flow ) * 0.000063090197
-    volumeFlow = (a_flow + b_flow * (avgV_flow - avgV_G)) * 0.000063090197 #(m^3/s) (1 gpm = 0.000063090197 m^3/s) 
+    # calculate flow rate
+    volumeFlow = a_flow + b_flow * (avgV_flow - avgV_G)  #(m^3/s) 
 
-    #delta_p = pressureRange * avgV_deltaPressure / P_range    
+    # calculate pressure drop over the borehole   
     delta_p = pressureRange * (avgV_deltaPressure - avgV_G) / P_range
 
     # calculate electrical heat inlet    
@@ -189,28 +184,17 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
     T_mean = (T_1 + T_2)/2
     c_p = PropsSI('Cpmass','T', T_mean, 'P', totalPressure,'Water')
     rho = PropsSI('Dmass','T', T_mean, 'P', totalPressure,'Water')     
-    print(PropsSI('Dmass','T', 294.5, 'P', totalPressure,'Water'))   
-# testing
-    #global expectedFlow
-    #expectedFlow = Q_elec / (rho * c_p * math.fabs(T_2 - T_1))
-############
     
     # calculate calorimetric and frictional heat inlet
     Q_calc = math.fabs(rho * volumeFlow * c_p * (T_2 - T_1))
     Q_fric = delta_p * volumeFlow
-    Q_tot_in = Q_calc + Q_fric
-    
-##    error_Q = Q_set_ - Q_tot_in
-
-    # for every run of the main loop, errors in Q are summed in order to average them afterwards with the "counter"
-##    sum_error_Q = sum_error_Q + error_Q 
-##    counter = counter + 1
+    Q_tot_in = Q_calc + Q_fric    
     
     currentTime = time.time() - start_clock
     transitTime = getTransitTime()
 
     # every time the fluid has transitted one time, new values are set and written into the DA file.
-    if (round(currentTime,0) % round(transitTime,0) == 0) or currentTime < 5:
+    if (round(currentTime,0) % round(1.5 * transitTime,0) == 0) or currentTime < 5:
 
         DAfile_list = open("DA_vals.txt").readlines()
         V_SCR_old = float(DAfile_list[0].split()[1])
@@ -219,11 +203,9 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
         
         # if the fluid has transitted 6 times, the control method is activated
 # 6 * transitTime !!
-        if 1 * transitTime < currentTime:
-##            avg_error_Q = sum_error_Q / counter
-
-# 6.5 
-            if 1.5 * transitTime < currentTime and secondPoint_switch == 1: # actual control
+        if 3 * transitTime < currentTime:
+# 7 
+            if 4.5 * transitTime < currentTime and secondPoint_switch == 1: # actual control
                 # secant method, modifing to a "root finding problem"
                 f_n_minus1 = float(f_v_scr[1]) - Q_set_
                 f_n_minus2 = float(f_v_scr[0]) - Q_set_
@@ -236,46 +218,43 @@ def calculationOfDA(Q_set_,volumeFlowrate_set_):
                 print(f_n_minus1, x_n_minus1, f_n_minus2, x_n_minus2)
 
                 if list1.index(max(list1)) == list2.index(max(list2)):  # accounts for "wrong points": if the order that a higher V_SCR gives a higher heat inlet is not provided, no change in V_SCR is made.
-                    print("--------------------correct points----------------------")
+                    print("----------------------- correct points ------------------------")
+
                     if f_n_minus1 != f_n_minus2:    # to account for division by zero: It could appear that the transition time is lower after averaging, because of new values, which can cause division by zero.
-                        print("-----------------------secant step------------------------")
+                        print("------------------------- secant step -------------------------")
                         V_SCR =  x_n_minus1 - f_n_minus1 * (x_n_minus1 - x_n_minus2) / (f_n_minus1 - f_n_minus2)
+                        
+# instead of this if statement and else statement to the if list.index == list.index could be made        
                 if x_n_minus1 == x_n_minus2: # if the V_SCR value remains the same, the control is not active anymore, because the secant method stays at the same point.
-                    print("--------------------manipulate V_SCR----------------------")
-                    V_SCR = V_SCR + 0.0005
-# 6.5                    
-            if 1.5 * transitTime < currentTime and secondPoint_bool == 1: # in order to get a second grid point (only needed one time)
-                #print("fourth if statement")
-##                if avg_error_Q >= 0:                
-##                    Q_new = Q_calc # + 0.25 * abs(avg_error_Q)
-##                else:                
-##                    Q_new = Q_calc # - 0.25 * abs(avg_error_Q)
-##                V_SCR = DArangeSCR * Q_new / Q_max + DAlowSCR
-                V_SCR = V_SCR - 0.1 # -0.5 is randomly picked. The only requirement is that V_SCR is changed.
+                    print("----------------------- manipulate V_SCR ----------------------")
+                    V_SCR = V_SCR + 0.000001
+# 7                    
+            if 4.5 * transitTime < currentTime and secondPoint_bool == 1: # in order to get a second grid point (only needed one time)
+                print("-------------------- get second grid point --------------------")
+
+                V_SCR = V_SCR - 0.1              # -0.1 is randomly picked. The only requirement is that V_SCR is changed.
                 secondPoint_bool = 0             # deactivate getting a second grid point
                 secondPoint_switch = 1           # activate control
 
-##            counter = 0
-##            sum_error_Q = 0
-
         else:                                    # V_SCR in the first 6 transit loops          
-            V_SCR = DArangeSCR * Q_set_ / Q_max + DAlowSCR - 0.3 
-# minus 0.3 ? 
+            V_SCR = DArangeSCR * Q_set_ / Q_max + DAlowSCR - 0.3
+            # because the control of the SCR based on DArangeSCR is not reliable and provides to high values for V_SCR, 
+            # the value for V_SCR is subtracted with 0.3 
             
-    ## control of the pump is made with VFD so far
-        V_pump = 0 
-# testing
-        V_SCR = 0 # 1.6 -> 1000 W
+    # control of the pump is made with VFD so far. For the control of the pump with the PI, here is probably the best place.       
+        V_pump = 0
+        
+    # If the V_SCR should be switched off manually, set V_SCR = 0 here and run the program until the red diode at the SCR is
+    # not shining anymore (should occur immediately).
+        #V_SCR = 0
         
         writeDAfile()
 
 ########################################################################
-        
-# TODO: - Zeitproblem loesen (Abfrage nach jeder sekunde notwendig?)
-# #### spaeter soll zwischen Q_elec und dem Q_cal  gewichtet werden bis zum 6. Durchlauf,
-# #### sodass ein langsamer uebergang zur Regelung entsteht      
+            
 # EXPLANATION:
-
+# Because the thermistors have different coefficients for the Steinhart - Hart equation, it is important to know which thermistor, has
+# which coefficients. Both thermistors are named thermistor 1 and thermistor 2 in the program.
 # thermistor 1: orange wire
 # thermistor 2: purple wire
 
@@ -311,9 +290,7 @@ sumV_R2 = 0
 sumV_flow = 0
 sumV_deltaPressure = 0
 sumV_Q_elec = 0
-sum_error_Q = 0
 
-counter = 0
 counterAverageFunc = 0
 average_switch = 1
 
