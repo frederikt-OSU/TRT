@@ -1,4 +1,5 @@
-set every 1 * tranist times
+set every 1 * transit times
+V_SCR_mod = 0.00001
 
 Date/Time		 Flow rate(obs)[L/s]	 Heat inlet(tot)[W]	 Heat inlet(fric)[W]	 Heat inlet(elec)[W]	 Temperature 1(obs)[K]	 Temperature 2(obs)[K]	 Pressure drop[Pa]	 V_SCR		 V_pump		 V_S		 V_G		 V_R1		 V_R2		 V_flow		 V_deltaPressure	 (no signal)V_Q_elec
 07/20/17 01:01:12 PM	 0.195882		 1016.832337		 2.675559		 0.000000		 292.777710		 294.017456		 13659.030724		 1.300000	 0.000000	 4.638423	 0.010240	 1.606137	 1.662817	 1.961243	 0.406455		 1.221988
