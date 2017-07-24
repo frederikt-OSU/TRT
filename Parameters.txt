@@ -1,3 +1,4 @@
 Diameter [m]	Depth [m]	Length of additional pipsystem [m]	Set_time [min]	Logfile period [s]	V_ref_set [V]
-0.021		70		35					5		30			5.0
+0.021		70		35					10		60			5.0
 									timeperiod to check the setfile		reference voltage for the PI
+										

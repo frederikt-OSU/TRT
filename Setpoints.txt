@@ -1,5 +1,5 @@
 Time[min]	Heatinlet[W]	Flowrate [L/s]
-000		1000		0.2
-005		1000		0.1
-008		1000		0.3
-060		0		0		End of measurement
+000		1500		0.2
+720		1500		0.2
+750		1500		0.2
+1200		0		0		The last time provides the end of measurement.
