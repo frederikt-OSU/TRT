@@ -58,7 +58,7 @@ def getParameters():
 # parameters: currentTs --> setPointStep, timestep of the whole measurement
 #             Q_setOld --> current set point of heat inlet
 #             volumeFlowrate_setOld --> current set point of flowrate   
-def readSetpoints(currentTs, Q_setOld, volumeFlowrate_setOld):
+def readSetpoints(overallTs, Q_setOld, volumeFlowrate_setOld):
     global maxTimesteps, Q_set, volumeFlowrate_set, start_clock, secondPoint_bool, secondPoint_switch
     
     file_list = open("Setpoints.txt").readlines() 
@@ -66,7 +66,7 @@ def readSetpoints(currentTs, Q_setOld, volumeFlowrate_setOld):
 
     # Every line of the file is read and checked, if the line provides the setpoint for the current timestep. 
     for currentLine in range(1,len(file_list)):
-        if currentTs < int(file_list[currentLine].split()[0]) * 60:     # times 60, because program is working in seconds
+        if overallTs < int(file_list[currentLine].split()[0]) * 60:     # times 60, because program is working in seconds
 
             Q_set = float(file_list[currentLine-1].split()[1])
             volumeFlowrate_set = float(file_list[currentLine-1].split()[2])
@@ -324,7 +324,7 @@ setPoints_clock = time.time()
 end_timer = 0
 start_timer = 0
 currentTimestep = 0
-wait_factor = 3
+wait_factor = 3             # factor * transit time provides the time, after which a new V_SCR value is set. 
 maxTimesteps = sys.maxsize  # maximal number of seconds to run the program (reading in via Setpoints.txt)
 
 f_v_scr = deque(maxlen = 2)
@@ -354,9 +354,9 @@ file_obj.write("Date/Time\t\t Flow rate(obs)[L/s]\t Heat inlet(tot)[W]\t Heat in
 file_obj.close()
 
 while True:
-
+    # calculate the current and overall timestep, 
     currentTimestep = round(time.time() - start_clock)
-    setPointStep = round(time.time() - setPoints_clock)
+    overallTimestep = round(time.time() - setPoints_clock)
     
     # sleep function in order to ensure that the program is executed one time every second
     time.sleep(math.fabs(1 - (end_timer - start_timer)))
@@ -369,8 +369,8 @@ while True:
     calculationOfDA(Q_set, volumeFlowrate_set)
     
     # read setpoints, if required
-    if setPointStep % set_time == 0:
-        readSetpoints(setPointStep, Q_set, volumeFlowrate_set)
+    if overallTimestep % set_time == 0:
+        readSetpoints(overallTimestep, Q_set, volumeFlowrate_set)
             
     # write Logfile
     if currentTimestep % logfile_period == 0:
@@ -384,7 +384,7 @@ while True:
     print("V_S(ch0): %f, V_G(ch1): %f, V_R1(ch2): %f, V_R2(ch3): %f, V_flow(ch4): %f, V_pres(ch5): %f, noSig-V_Q_elec(ch6): %f, noSig: %f" % (float(AD_list[0].split()[0]),float(AD_list[0].split()[1]),float(AD_list[0].split()[2]),float(AD_list[0].split()[3]),float(AD_list[0].split()[4]),float(AD_list[0].split()[5]),float(AD_list[0].split()[6]),float(AD_list[0].split()[7])))
     print("currentTimestep: %d, DA1: %f" % (currentTimestep, float(DA_list[0].split()[1])))
 ##    
-    if(currentTimestep >= maxTimesteps):
+    if(overallTimestep >= maxTimesteps):
 	break
 
 total_end = time.time()
